@@ -1,2 +1,3 @@
 threading
 socket
+djitellopy
