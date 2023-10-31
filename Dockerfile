@@ -1,5 +1,5 @@
 # multi-stage for setup
-FROM ubuntu:jammy-20220301 as setuper
+FROM ubuntu:jammy-20220301 as base
 ARG DEBIAN_FRONTEND=noninteractive
 
 # setup timezone
@@ -82,7 +82,7 @@ RUN echo "yaml file:///etc/ros/rosdep/prereqs.yaml" | \
 RUN rosdep update
 
 # multi-stage for caching
-FROM setuper AS cacher
+FROM base AS cache
 ARG TIMESTAMP
 
 # install ros2 packages
@@ -104,11 +104,11 @@ RUN mkdir -p /tmp/opt/ros/$ROS_DISTRO && \
 
 
 # multi-stage for nightly
-FROM setuper AS nightly
+FROM base AS final
 ARG DEBIAN_FRONTEND=noninteractive
 
 # install dependencies
-COPY --from=cacher /tmp/opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
+COPY --from=cache /tmp/opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
 RUN apt-get update && rosdep update && rosdep install -y \
     --from-paths /opt/ros/$ROS_DISTRO/share \
     --ignore-src \
@@ -118,7 +118,7 @@ RUN apt-get update && rosdep update && rosdep install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # install nightly
-COPY --from=cacher /opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
+COPY --from=cache /opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
 
 # setup entrypoint
 COPY ./ros_entrypoint.sh /
