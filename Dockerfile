@@ -53,6 +53,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 ENV ROS_DISTRO rolling
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
+# TODO this line doesn't get invalidated if the file itself changes
 ENV ROSDISTRO_INDEX_URL https://raw.githubusercontent.com/osrf/docker_images/master/ros2/nightly/nightly/index-v4.yaml
 
 # install python packages
@@ -65,11 +66,11 @@ RUN pip3 freeze | grep pytest \
 
 # setup colcon mixin and metadata
 RUN colcon mixin add default \
-      https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
-    colcon mixin update && \
-    colcon metadata add default \
-      https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml && \
-    colcon metadata update
+    https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
+RUN colcon mixin update
+RUN colcon metadata add default \
+    https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml
+RUN colcon metadata update
 
 # bootstrap rosdep
 RUN rosdep init
@@ -104,7 +105,7 @@ RUN mkdir -p /tmp/opt/ros/$ROS_DISTRO && \
 
 
 # multi-stage for nightly
-FROM base AS final
+FROM base AS ros2
 ARG DEBIAN_FRONTEND=noninteractive
 
 # install dependencies
@@ -122,6 +123,7 @@ COPY --from=cache /opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
 
 # setup entrypoint
 COPY ./ros_entrypoint.sh /
+RUN chmod +x /ros_entrypoint.sh
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
