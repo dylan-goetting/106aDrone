@@ -125,6 +125,9 @@ COPY --from=cache /opt/ros/$ROS_DISTRO /opt/ros/$ROS_DISTRO
 COPY ./ros_entrypoint.sh /
 RUN chmod +x /ros_entrypoint.sh
 
+ENV ROS_DOMAIN_ID=1
+ENV ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
 
