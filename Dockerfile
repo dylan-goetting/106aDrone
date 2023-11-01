@@ -131,3 +131,23 @@ ENV ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
 
+FROM ros2 AS tello
+
+# project deps
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install catkin_pkg rospkg av image opencv-python djitellopy2 pyyaml
+# RUN apt install python3-tf*
+# CPP deps
+# RUN apt install ros-foxy-ament-cmake* ros-foxy-tf2* ros-foxy-rclcpp* ros-foxy-rosgraph*
+# Rviz, RQT
+# RUN apt install ros-foxy-rviz* ros-foxy-rqt*
+
+WORKDIR /workspace
+COPY ./vendor/github.com.tentone/tello-ros2/workspace/src ./src
+# Project
+RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash "\
+"&& rosdep install -i --from-path src "\
+"&& colcon build --symlink-install --packages-select tello tello_control tello_msg"
+
+COPY ./vendor/github.com.tentone/tello-ros2/scripts /scripts
+
