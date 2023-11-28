@@ -1,6 +1,7 @@
 import numpy as np
 import cv2 as cv
 import glob
+import pickle
 # termination criteria
 def get_calibration():
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -31,4 +32,7 @@ def get_calibration():
     ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
     return ret, mtx, dist, rvecs, tvecs
 
-#get_calibration()
+if __name__ == '__main__':
+    out = get_calibration()
+    with open('calibration.pkl', 'wb') as f:
+        pickle.dump(out, f)

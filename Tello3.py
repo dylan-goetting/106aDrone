@@ -48,7 +48,7 @@ recvThread.start()
 while True: 
 
     try:
-        msg = input("");
+        msg = input("Send a command\n");
 
         if not msg:
             break  

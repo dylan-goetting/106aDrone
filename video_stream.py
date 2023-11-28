@@ -1,21 +1,25 @@
 import cv2
 from djitellopy import Tello
 import time
-tello = Tello()
-tello.connect()
-
-tello.streamon()
-frame_read = tello.get_frame_read()
 from  calibrate_camera import get_calibration
 import cv2
 import time
 import os
+import pickle
+import pdb
 
+tello = Tello()
+tello.connect()
+tello.streamon()
+frame_read = tello.get_frame_read()
 # Initialize the BackgroundFrameRead object
 frame_reader = frame_read
-ret, mtx, dist, rvecs, tvecs = get_calibration()
+with open('calibration.pkl', 'rb') as f:
+    ret, mtx, dist, rvecs, tvecs = pickle.load(f)
+
 i = 0
 try:
+    t = time.time()
     while True:
         i += 1
         # Get the current frame
@@ -38,9 +42,10 @@ try:
             cv2.line(frame, bottomLeft, topLeft, (0, 255, 0), 2)
             cX = int((topLeft[0] + bottomRight[0]) / 2.0)
             cY = int((topLeft[1] + bottomRight[1]) / 2.0)
-            cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
+            #cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
 
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(all_corners[0], 0.02, mtx, dist)
+            print(f'rvec {rvec}, tvec {tvec}')
             cv2.drawFrameAxes(frame, mtx, dist, rvec, tvec, 0.02)
 
         if frame is not None:
@@ -54,9 +59,9 @@ try:
         time.sleep(0.1)
 
 finally:
+    print('LATENCY:' , i/(time.time() - t))
     # Stop the frame reader
     frame_reader.stop()
-
     # Close the OpenCV window
     cv2.destroyAllWindows()
 
