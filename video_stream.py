@@ -8,16 +8,35 @@ import os
 import pickle
 import pdb
 
-tello = Tello()
-tello.connect()
-tello.streamon()
-frame_read = tello.get_frame_read()
-# Initialize the BackgroundFrameRead object
-frame_reader = frame_read
 with open('calibration.pkl', 'rb') as f:
     ret, mtx, dist, rvecs, tvecs = pickle.load(f)
 
+tello = Tello()
+tello.connect()
+tello.streamon()
+#tello.takeoff()
+frame_read = tello.get_frame_read()
+# Initialize the BackgroundFrameRead object
+frame_reader = frame_read
+
 i = 0
+j = 0
+
+def move_y(dist):
+    h = tello.get_height()
+    if dist > 0:
+        move = h + dist
+        move = min(move, 500)
+        move = max(move, 20)
+        tello.move_up(move)
+    else:
+        move = h - dist
+        move = min(move, 500)
+        move = max(move, 20)
+        tello.move_down(move)
+
+#move_y(0)
+
 try:
     t = time.time()
     while True:
@@ -27,8 +46,10 @@ try:
         #if i % 20 == 0:
         #    cv2.imwrite(f"calibration/chess{i}.png", frame)
         # If a frame was received
+        last_y_err = 0
         (all_corners, ids, rejected) = cv2.aruco.detectMarkers(frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100), parameters=cv2.aruco.DetectorParameters())
         if len(all_corners) > 0:
+            j += 1
             corners = all_corners[0].reshape((4, 2))
             (topLeft, topRight, bottomRight, bottomLeft) = corners
             # convert each of the (x, y)-coordinate pairs to integers
@@ -45,12 +66,27 @@ try:
             #cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
 
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(all_corners[0], 0.02, mtx, dist)
-            print(f'rvec {rvec}, tvec {tvec}')
             cv2.drawFrameAxes(frame, mtx, dist, rvec, tvec, 0.02)
+            tvec = tvec.squeeze()
+            print('\nZ:', tvec[2]*520)
+            #print(f'Found AR tag')
+            if j % 10 == 0:
+                #print(f'rvec {rvec}, tvec {tvec}')
+                y_err = tvec[1]
+                kp = -0.5
+                y_err_dot = y_err - last_y_err
+                kd = -0.1
+                last_y_err = y_err
+                cmd = kp*y_err + kd*y_err_dot
+                cmd = int(cmd*100)
 
-        if frame is not None:
+                #print('moving y:', cmd)
+                #move_y(-y_err)
+
+        if frame is not None and i % 1 ==0:
             # Display the frame
             cv2.imshow('Video Feed', frame)
+            tello.send_control_command('command')
         # If 'q' is pressed on the keyboard, break the loop
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
