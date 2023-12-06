@@ -15,8 +15,8 @@ with open('calibration.pkl', 'rb') as f:
 tello = Tello()
 tello.connect()
 tello.streamon()
-#tello.takeoff()
-#tello.move_up(90)
+tello.takeoff()
+tello.move_up(90)
 frame_read = tello.get_frame_read()
 # Initialize the BackgroundFrameRead object
 frame_reader = frame_read
@@ -41,12 +41,12 @@ def move_x(dist):
     if dist > 0:
         dist = max(dist, 20)
         dist = min(dist, 500)
-        tello.move_left(dist)
+        tello.move_right(dist)
     else:
         dist = -dist
         dist = max(dist, 20)
         dist = min(dist, 500)
-        tello.move_right(dist)
+        tello.move_left(dist)
 
 def rotate_yaw(rvec):
 
@@ -67,7 +67,7 @@ def rotate_yaw(rvec):
         tello.rotate_counter_clockwise(int(theta))
         
 
-    return theta
+    return 360 - theta
 
 print("--------------------------START----------------------")
 
@@ -105,17 +105,27 @@ try:
             rvec = rvec.squeeze()
 
             print(f'Found AR tag\n')
-            print("TVEC:", tvec)
-            if time.time() - t > 3:
+            #print("TVEC:", tvec)
+            if time.time() - t > 2:
                 print("SENDING COMMAND \n")
                 print('tvec:\n', tvec)
-                if tvec[0] > 10:
-                    move_x(tvec[0])
+                
                 time.sleep(2)
                 if tvec[1] > 10:
                     move_y(tvec[1])
                 time.sleep(2)
-                rotate_yaw(rvec)
+                t1 = rotate_yaw(rvec)
+                print("CW Degrees", t1)
+                t1 = np.deg2rad(t1)
+                time.sleep(2)
+                t2 = np.arctan2(tvec[0], tvec[2])    
+                t3 = np.pi/4 - t1 + t2
+                delta_x = -np.sqrt(tvec[0]**2 + tvec[2]**2) * np.cos(t3)
+                print("DELTA X", delta_x)
+                move_x(int(delta_x/2))
+                time.sleep(1)
+                tello.move_forward(int(tvec[2]/1.5))
+
                 t = time.time()
             # if j % 10 == 0:
             #     #print(f'rvec {rvec}, tvec {tvec}')
