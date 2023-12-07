@@ -12,11 +12,13 @@ import numpy as np
 with open('calibration.pkl', 'rb') as f:
     ret, mtx, dist, rvecs, tvecs = pickle.load(f)
 
+static = True
 tello = Tello()
 tello.connect()
 tello.streamon()
-tello.takeoff()
-tello.move_up(90)
+if not static:
+    tello.takeoff()
+    tello.move_up(90)
 frame_read = tello.get_frame_read()
 # Initialize the BackgroundFrameRead object
 frame_reader = frame_read
@@ -48,29 +50,66 @@ def move_x(dist):
         dist = min(dist, 500)
         tello.move_left(dist)
 
-def rotate_yaw(rvec):
-
-    rmatrix, _ = cv2.Rodrigues(rvec)
-    z_axis = np.array(rmatrix[:, 2]).flatten()
-    theta = np.arctan2(z_axis[2], z_axis[0])
-    theta = theta + np.pi/2
-    if theta >= 2*np.pi:
-        theta -= 2*np.pi
-    if theta < 0:
-        theta += 2*np.pi
-    
+def rotate_yaw(theta):
     theta = np.rad2deg(theta)
 
     if theta > 180:
-        tello.rotate_clockwise(360 - int(theta))
+        if theta < 360:
+            tello.rotate_clockwise(360 - int(theta))
     else:
-        tello.rotate_counter_clockwise(int(theta))
+        if theta > 1:
+            tello.rotate_counter_clockwise(int(theta))
         
 
     return 360 - theta
 
-print("--------------------------START----------------------")
+def phase_1_control(tvec, rvec, static=False):
+    print("[Phase1] SENDING COMMAND \n")
 
+    rmatrix, _ = cv2.Rodrigues(rvec)
+    z_axis = np.array(rmatrix[:, 2]).flatten()
+    t1 = np.arctan(z_axis[0]/z_axis[2]) # ANGLE TO ROTATE CCW TO BE ALIGNED WITH TAG
+
+    t2 = np.arctan(tvec[0]/tvec[2])
+    t3 = np.pi/2 - t1 + t2
+    delta_x = -np.sqrt(tvec[0]**2 + tvec[2]**2) * np.cos(t3)
+    delta_z = np.sqrt(tvec[0]**2 + tvec[2]**2) * np.sin(t3)
+    print('TVEC:', tvec)
+    print("Z AXIS:", z_axis)
+    print("T1, t2, t3 ", t1, t2, t3)
+    print('[Phase1] Delta_y:', tvec[1]+20)
+    print('[Phase1] Delta_yaw degrees:', np.rad2deg(t1))
+    print("[Phase1] Delta_x:", delta_x)
+    print("[Phase1] Delta_z:", delta_z)
+
+    time.sleep(2)
+
+    if not static:
+        rotate_yaw(t1)
+        time.sleep(1.5)
+        if abs(delta_x) > 20:
+            move_x(int(delta_x))
+        time.sleep(1.5)
+        if abs(tvec[1]+20) > 20:
+            move_y(tvec[1]+20)
+        time.sleep(1.5)
+
+
+def phase_2_control(tvec, rvec):
+    print("[Phase 2] SENDING COMMAND\n")
+    rmatrix, _ = cv2.Rodrigues(rvec)
+    z_axis = np.array(rmatrix[:, 2]).flatten()
+    t2 = np.arctan(tvec[0]/tvec[2])
+    if abs(tvec[1]+20) > 20:
+        move_y(tvec[1]+20)
+    time.sleep(1)
+    rotate_yaw(t2)
+    time.sleep(1)
+    tello.move_forward(20)
+
+
+print("--------------------------START----------------------")
+buf = []
 try:
     t = time.time()
     while True:
@@ -100,50 +139,22 @@ try:
             #cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
 
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(all_corners[0], 15, mtx, dist)
-            cv2.drawFrameAxes(frame, mtx, dist, rvec, tvec, 0.02)
+            cv2.drawFrameAxes(frame, mtx, dist, rvec, tvec, 15)
             tvec = tvec.squeeze()
             rvec = rvec.squeeze()
-
+            rmatrix, _ = cv2.Rodrigues(rvec)
+            z_axis = np.array(rmatrix[:, 2]).flatten()
+            buf.append([tvec, z_axis])
             print(f'Found AR tag\n')
             #print("TVEC:", tvec)
-            if time.time() - t > 2:
-                print("SENDING COMMAND \n")
-                print('tvec:\n', tvec)
-                
-                time.sleep(2)
-                if tvec[1] > 10:
-                    move_y(tvec[1])
-                time.sleep(2)
-                t1 = rotate_yaw(rvec)
-                print("CW Degrees", t1)
-                t1 = np.deg2rad(t1)
-                time.sleep(2)
-                t2 = np.arctan2(tvec[0], tvec[2])    
-                t3 = np.pi/4 - t1 + t2
-                delta_x = -np.sqrt(tvec[0]**2 + tvec[2]**2) * np.cos(t3)
-                print("DELTA X", delta_x)
-                move_x(int(delta_x/2))
-                time.sleep(1)
-                tello.move_forward(int(tvec[2]/1.5))
+            phase_1_control(tvec, rvec, static)
 
-                t = time.time()
-            # if j % 10 == 0:
-            #     #print(f'rvec {rvec}, tvec {tvec}')
-            #     y_err = tvec[1]
-            #     kp = -0.5
-            #     y_err_dot = y_err - last_y_err
-            #     kd = -0.1
-            #     last_y_err = y_err
-            #     cmd = kp*y_err + kd*y_err_dot
-            #     cmd = int(cmd*100)
+            t = time.time()
 
-                #print('moving y:', cmd)
-                #move_y(-y_err)
-
-        if frame is not None and i % 1 == 0:
+        if frame is not None and i % 3 == 0:
             # Display the frame
             cv2.imshow('Video Feed', frame)
-            tello.send_control_command('command')
+            #tello.send_control_command('command')
         # If 'q' is pressed on the keyboard, break the loop
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -159,4 +170,5 @@ finally:
     cv2.destroyAllWindows()
 
 print('test')
+pdb.set_trace()
 tello.streamoff()
