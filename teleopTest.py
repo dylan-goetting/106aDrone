@@ -1,18 +1,8 @@
 from pynput.keyboard import Key, Listener
+import keyboard
 
-def show(key):
+while True:
 
-    if key == Key.tab:
-        print("good")
-
-    if key != Key.tab:
-        print("try again")
-
-    # by pressing 'delete' button 
-    # you can terminate the loop 
-    if key == Key.delete:
-        return False
-
-# Collect all event until released
-with Listener(on_press = show) as listener:
-    listener.join()
+    print(keyboard.read_key())
+    if keyboard.read_key() == "a":
+        break
