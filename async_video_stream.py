@@ -16,14 +16,22 @@ class AsyncPositionStream:
     PORT = 11111
     ADDRESS = f"udp://{HOST}:{PORT}"
 
-    def __init__(self, render = False):
-        with open('calibration.pkl', 'rb') as f:
+    def __init__(self, render=False):
+        with open("calibration.pkl", "rb") as f:
             self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = pickle.load(f)
         self.render = render
-        self.rvec = [0]*3
-        self.tvec = [0]*3
-        self.s_rvec = [Value(ctypes.c_double, 0)] * 3
-        self.s_tvec = [Value(ctypes.c_double, 0)] * 3
+        self.rvec = [0] * 3
+        self.tvec = [0] * 3
+        self.s_rvec = [
+            Value(ctypes.c_double, 0),
+            Value(ctypes.c_double, 0),
+            Value(ctypes.c_double, 0),
+        ]
+        self.s_tvec = [
+            Value(ctypes.c_double, 0),
+            Value(ctypes.c_double, 0),
+            Value(ctypes.c_double, 0),
+        ]
         self.s_fps = Value(ctypes.c_double, 0)
         self.fps = -1
         self.is_child = False
@@ -41,10 +49,10 @@ class AsyncPositionStream:
         while ok:
             iter += 1
             ok, frame = capture.read()
-            
+
             _time = capture.get(cv2.CAP_PROP_POS_MSEC)
             if self.render:
-                cv2.imshow('Video Feed', frame)
+                cv2.imshow("Video Feed", frame)
             self.rvec, self.tvec = self._parse_frame(frame)
             self.fps = (time.perf_counter() - perf_start) / iter
             self.sync()
@@ -62,7 +70,7 @@ class AsyncPositionStream:
         # no op if none are detected
         if len(all_corners) == 0:
             return self.rvec, self.tvec
-        
+
         corners = all_corners[0].reshape((4, 2))
         (topLeft, topRight, bottomRight, bottomLeft) = corners
         # convert each of the (x, y)-coordinate pairs to integers
@@ -85,7 +93,7 @@ class AsyncPositionStream:
         tvec = tvec.squeeze()
         rvec = rvec.squeeze()
         return tvec, rvec
-    
+
     def sync(self):
         if self.is_child:
             for i in range(3):
@@ -101,9 +109,7 @@ class AsyncPositionStream:
     def pos(self):
         self.sync()
         return self.rvec, self.tvec
-    
+
     def get_fps(self):
         self.sync()
         return self.fps
-    
-
