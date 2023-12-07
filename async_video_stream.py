@@ -113,3 +113,7 @@ class AsyncPositionStream:
     def get_fps(self):
         self.sync()
         return self.fps
+
+    def close(self):
+        self._process.terminate()
+        self._process.join()
