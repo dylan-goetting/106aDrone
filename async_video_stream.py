@@ -5,7 +5,8 @@ import pickle
 import numpy as np
 import time
 import ctypes
-
+import sys
+import os
 
 class AsyncPositionStream:
     """
@@ -17,8 +18,10 @@ class AsyncPositionStream:
     ADDRESS = f"udp://{HOST}:{PORT}"
 
     def __init__(self, render=False):
+
         with open("calibration.pkl", "rb") as f:
-            self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = pickle.load(f)
+            self.ret, self.mtx, self.dist, self.rvecs, self.tvecs = pickle.load(
+                f)
         self.render = render
         self.rvec = [0] * 3
         self.tvec = [0] * 3
@@ -39,23 +42,29 @@ class AsyncPositionStream:
         self._process.start()
 
     def _run(self):
+
         self.is_child = True
         capture = cv2.VideoCapture(self.ADDRESS)
         # get first valid frame - takes a while
         ok, _ = capture.read()
         perf_start = time.perf_counter()
         iter = 0
+        print("purging")
+        for _ in range(100):
+            _, _ = capture.read()
         print("starting position stream")
         while ok:
             iter += 1
             ok, frame = capture.read()
 
             _time = capture.get(cv2.CAP_PROP_POS_MSEC)
-            if self.render:
-                cv2.imshow("Video Feed", frame)
             self.rvec, self.tvec = self._parse_frame(frame)
             self.fps = (time.perf_counter() - perf_start) / iter
             self.sync()
+            if self.render:
+                cv2.imshow("Video Feed", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
 
     def _detect_markers(self, frame):
         return cv2.aruco.detectMarkers(
@@ -88,7 +97,7 @@ class AsyncPositionStream:
             cv2.line(frame, topRight, bottomRight, (0, 255, 0), 2)
             cv2.line(frame, bottomRight, bottomLeft, (0, 255, 0), 2)
             cv2.line(frame, bottomLeft, topLeft, (0, 255, 0), 2)
-            cv2.drawFrameAxes(frame, self.mtx, self.dist, rvec, tvec, 0.02)
+            cv2.drawFrameAxes(frame, self.mtx, self.dist, rvec, tvec, 15)
 
         tvec = tvec.squeeze()
         rvec = rvec.squeeze()
